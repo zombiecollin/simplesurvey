@@ -13,18 +13,23 @@ A single-page survey application that asks single-selection questions one at a t
 - 🔙 Navigate back and forth between questions
 - 📄 Summary of all responses at the end
 - ☁️ Runs on Cloudflare's edge network
-- 💾 **NEW: Stores results per device in D1 database**
-- 🔐 **NEW: Unique device tracking with localStorage**
+- 💾 **Stores results per device in D1 database**
+- 🔐 **Unique device tracking with localStorage**
+- 🔄 **Auto-saves progress on every Next button click**
+- 📥 **Auto-loads previous responses when you return**
+- ⚡ **Resume where you left off - never lose your progress!**
 
 ## Files
 
 - `index.js` - Cloudflare Worker that serves the survey and handles D1 storage
-- `migrations/0001_create_survey_responses.sql` - D1 database schema
 - `public/index.html` - Survey web application (source)
+- `public/results.html` - **Results dashboard with real-time updates**
+- `migrations/0001_create_survey_responses.sql` - D1 database schema
 - `server.js` - Node.js server for local testing
 - `wrangler.toml` - Cloudflare Workers configuration
 - `package.json` - Node.js dependencies
 - `setup-d1.sh` - Script to create D1 database
+- `FLOW.md` - Documentation of survey flow and data management
 
 ## Setup
 
@@ -70,6 +75,25 @@ npm start
 ```
 
 Then open your browser and visit **http://localhost:8080**
+
+## View Results Dashboard
+
+Access the real-time results dashboard at:
+- **Local:** `http://localhost:8080/results`
+- **Production:** `https://simplesurvey.<your-subdomain>.workers.dev/results`
+
+### Dashboard Features:
+- 📊 **Live analytics** -Real-time response statistics
+- 🔄 **Auto-refresh** - Polls for new data every 10 seconds
+- 📈 **Visual charts** - Progress bars showing answer distribution
+- 📱 **Responsive design** - Works on all devices
+- 🎯 **Completion tracking** - See how many users finished the survey
+
+The dashboard automatically:
+- Refreshes data every 10 seconds
+- Pauses when tab is hidden (saves battery)
+- Resumes when tab becomes visible again
+- Shows total responses, unique devices, and completion rate
 
 ## Deploy to Cloudflare
 
@@ -144,23 +168,122 @@ The survey includes 5 sample questions about:
 - Communication preferences
 - Vacation styles
 
-### Device Tracking
+### Device Tracking & Auto-Save
 
-Each device is assigned a unique ID stored in localStorage. When a user completes the survey:
+Each device is assigned a unique ID stored in localStorage with automatic progress saving:
+
+**On First Visit:**
 1. A unique device ID is generated (format: `dev_timestamp_random`)
-2. All responses are saved to D1 with this device ID
-3. The device ID persists across page reloads
-4. Responses are stored individually but can be queried by device
+2. The ID is stored in localStorage for future visits
 
-This allows you to:
+**As You Answer Questions:**
+1. Every time you click "Next", your answer is immediately saved to D1
+2. Progress is saved in real-time - no need to complete the entire survey
+3. Responses are upserted (previous answers are replaced with new ones)
+
+**When You Return:**
+1. The app automatically loads your previous responses from D1
+2. You can review or change your answers
+3. Continue from where you left off
+
+**This allows you to:**
+- Never lose your progress - close the browser anytime
+- Review and update answers before final submission
 - Track responses per device
-- Prevent duplicate submissions (if desired)
-- Analyze response patterns
+- Prevent accidental data loss
+- Analyze response patterns and partial completions
 - Build analytics dashboards
+
+**Privacy Note:** All data is tied to a random device ID, not personal information.
+
+## API Endpoints
+
+The worker exposes three endpoints:
+
+### `GET /api/responses?deviceId={id}`
+Load previous responses for a device. Auto-called on page load.
+
+**Response:**
+```json
+{
+  "responses": [
+    {
+      "questionId": 0,
+      "questionText": "What is your favorite type of music?",
+      "answerIndex": 2,
+      "answerText": "Jazz"
+    }
+  ]
+}
 ```
 
-Your worker will be deployed to `https://simplesurvey.<your-subdomain>.workers.dev`
+### `POST /api/save`
+Save progress after each Next button click. Upserts responses (replaces existing).
 
-## What it does
+**Request:**
+```json
+{
+  "deviceId": "dev_1234567890_abc123",
+  "responses": [
+    {
+      "questionId": 0,
+      "questionText": "What is your favorite type of music?",
+      "answerIndex": 2,
+      "answerText": "Jazz"
+    }
+  ]
+}
+```
 
-Returns a simple "Hello World from Cloudflare Container!" message for all requests.
+### `POST /api/submit`
+Submit final survey. Updates existing records by device_id and question_id without deleting previous entries.
+
+**Request:**
+```json
+{
+  "deviceId": "dev_1234567890_abc123",
+  "responses": [
+    {
+      "questionId": 0,
+      "questionText": "What is your favorite type of music?",
+      "answerIndex": 2,
+      "answerText": "Jazz"
+    }
+  ]
+}
+```
+
+**Behavior:**
+- Uses UPDATE statements to modify existing records
+- Preserves the original `created_at` timestamp
+- Only updates `answer_index` and `answer_text` fields
+
+### `GET /api/results`
+Fetch aggregated survey results with response statistics and answer distributions.
+
+**Response:**
+```json
+{
+  "stats": {
+    "totalResponses": 15,
+    "uniqueDevices": 3,
+    "expectedResponses": 15
+  },
+  "questions": [
+    {
+      "questionId": 0,
+      "questionText": "What is your favorite type of music?",
+      "options": [
+        { "answerText": "Rock", "count": 5 },
+        { "answerText": "Jazz", "count": 7 },
+        { "answerText": "Pop", "count": 3 }
+      ]
+    }
+  ]
+}
+```
+
+**Usage:**
+- Powers the `/results` dashboard
+- Auto-refreshes every 10 seconds on the dashboard
+- No authentication required (public analytics)

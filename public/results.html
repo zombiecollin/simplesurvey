@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Survey Results - Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        h1 {
+            color: #333;
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+
+        .stats {
+            display: flex;
+            gap: 20px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        .stat-card {
+            flex: 1;
+            min-width: 200px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 36px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .last-updated {
+            color: #666;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+
+        .loading {
+            text-align: center;
+            color: #666;
+            padding: 40px;
+        }
+
+        .question-results {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .question-title {
+            color: #333;
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 20px;
+        }
+
+        .option-row {
+            margin-bottom: 15px;
+        }
+
+        .option-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            color: #666;
+            font-size: 14px;
+        }
+
+        .option-count {
+            font-weight: 600;
+            color: #667eea;
+        }
+
+        .bar-container {
+            background: #f0f0f0;
+            border-radius: 10px;
+            height: 30px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .bar-fill {
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            height: 100%;
+            transition: width 0.5s ease;
+            display: flex;
+            align-items: center;
+            padding: 0 15px;
+            color: white;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .bar-fill.low {
+            background: linear-gradient(90deg, #e0e0e0 0%, #c0c0c0 100%);
+            color: #666;
+        }
+
+        .refresh-indicator {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: white;
+            padding: 10px 20px;
+            border-radius: 20px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            font-size: 14px;
+            color: #666;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .refresh-dot {
+            width: 8px;
+            height: 8px;
+            background: #28a745;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+
+        .no-data h2 {
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+
+        .error {
+            background: #ff4444;
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .back-link {
+            display: inline-block;
+            margin-top: 10px;
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .back-link:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="refresh-indicator">
+        <div class="refresh-dot"></div>
+        <span id="refreshStatus">Auto-refreshing...</span>
+    </div>
+
+    <div class="container">
+        <div class="header">
+            <h1>📊 Survey Results Dashboard</h1>
+            <a href="/" class="back-link">← Back to Survey</a>
+            <div class="stats">
+                <div class="stat-card">
+                    <div class="stat-value" id="totalResponses">0</div>
+                    <div class="stat-label">Total Responses</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="uniqueDevices">0</div>
+                    <div class="stat-label">Unique Devices</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="completionRate">0%</div>
+                    <div class="stat-label">Completion Rate</div>
+                </div>
+            </div>
+            <div class="last-updated">Last updated: <span id="lastUpdated">Never</span></div>
+        </div>
+
+        <div id="error"></div>
+        <div id="loading" class="loading">Loading results...</div>
+        <div id="results"></div>
+    </div>
+
+    <script>
+        let pollInterval;
+        let lastFetchTime = null;
+
+        async function fetchResults() {
+            try {
+                const response = await fetch('/api/results');
+                if (!response.ok) {
+                    throw new Error('Failed to fetch results');
+                }
+                
+                const data = await response.json();
+                displayResults(data);
+                
+                lastFetchTime = new Date();
+                document.getElementById('lastUpdated').textContent = lastFetchTime.toLocaleTimeString();
+                document.getElementById('error').innerHTML = '';
+                document.getElementById('loading').style.display = 'none';
+                
+            } catch (error) {
+                console.error('Error fetching results:', error);
+                document.getElementById('error').innerHTML = `
+                    <div class="error">
+                        Error loading results: ${error.message}
+                    </div>
+                `;
+                document.getElementById('loading').style.display = 'none';
+            }
+        }
+
+        function displayResults(data) {
+            // Update stats
+            document.getElementById('totalResponses').textContent = data.stats.totalResponses || 0;
+            document.getElementById('uniqueDevices').textContent = data.stats.uniqueDevices || 0;
+            
+            const completionRate = data.stats.expectedResponses > 0 
+                ? Math.round((data.stats.totalResponses / data.stats.expectedResponses) * 100)
+                : 0;
+            document.getElementById('completionRate').textContent = completionRate + '%';
+
+            // Display question results
+            const resultsContainer = document.getElementById('results');
+            
+            if (!data.questions || data.questions.length === 0) {
+                resultsContainer.innerHTML = `
+                    <div class="question-results">
+                        <div class="no-data">
+                            <h2>No survey responses yet</h2>
+                            <p>Results will appear here as users complete the survey.</p>
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+
+            resultsContainer.innerHTML = data.questions.map(question => {
+                const total = question.options.reduce((sum, opt) => sum + opt.count, 0);
+                
+                return `
+                    <div class="question-results">
+                        <div class="question-title">${question.questionText}</div>
+                        ${question.options.map(option => {
+                            const percentage = total > 0 ? Math.round((option.count / total) * 100) : 0;
+                            const barClass = percentage < 10 ? 'bar-fill low' : 'bar-fill';
+                            
+                            return `
+                                <div class="option-row">
+                                    <div class="option-label">
+                                        <span>${option.answerText}</span>
+                                        <span class="option-count">${option.count} ${option.count === 1 ? 'response' : 'responses'}</span>
+                                    </div>
+                                    <div class="bar-container">
+                                        <div class="${barClass}" style="width: ${percentage}%">
+                                            ${percentage > 0 ? percentage + '%' : ''}
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function startPolling() {
+            // Fetch immediately
+            fetchResults();
+            
+            // Then poll every 10 seconds
+            pollInterval = setInterval(() => {
+                fetchResults();
+                document.getElementById('refreshStatus').textContent = 'Refreshed at ' + new Date().toLocaleTimeString();
+            }, 10000);
+        }
+
+        function stopPolling() {
+            if (pollInterval) {
+                clearInterval(pollInterval);
+            }
+        }
+
+        // Start polling when page loads
+        window.addEventListener('load', startPolling);
+        
+        // Stop polling when page is hidden (battery/performance optimization)
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                stopPolling();
+            } else {
+                startPolling();
+            }
+        });
+
+        // Clean up on page unload
+        window.addEventListener('beforeunload', stopPolling);
+    </script>
+</body>
+</html>
