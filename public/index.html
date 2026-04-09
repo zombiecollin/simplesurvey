@@ -1,4 +1,4 @@
-const html = `<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -227,23 +227,13 @@ const html = `<!DOCTYPE html>
 
         let currentQuestion = 0;
         let answers = {};
-        let deviceId = getOrCreateDeviceId();
-
-        function getOrCreateDeviceId() {
-            let id = localStorage.getItem('survey_device_id');
-            if (!id) {
-                id = 'dev_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-                localStorage.setItem('survey_device_id', id);
-            }
-            return id;
-        }
 
         function renderQuestion() {
             const question = questions[currentQuestion];
             const progress = ((currentQuestion + 1) / questions.length) * 100;
             
             document.getElementById('progress').style.width = progress + '%';
-            document.getElementById('questionNumber').textContent = \`Question \${currentQuestion + 1} of \${questions.length}\`;
+            document.getElementById('questionNumber').textContent = `Question ${currentQuestion + 1} of ${questions.length}`;
             document.getElementById('questionText').textContent = question.question;
             
             const optionsContainer = document.getElementById('options');
@@ -296,67 +286,22 @@ const html = `<!DOCTYPE html>
             }
         }
 
-        async function submitSurvey() {
-            // Show saving message
-            const submitBtn = document.getElementById('submitBtn');
-            submitBtn.textContent = 'Saving...';
-            submitBtn.disabled = true;
-
-            // Prepare survey data
-            const surveyData = {
-                deviceId: deviceId,
-                responses: questions.map((question, index) => ({
-                    questionId: index,
-                    questionText: question.question,
-                    answerIndex: answers[index],
-                    answerText: question.options[answers[index]]
-                }))
-            };
-
-            // Send to server
-            try {
-                const response = await fetch('/api/submit', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(surveyData)
-                });
-
-                if (!response.ok) {
-                    throw new Error('Failed to save survey');
-                }
-
-                // Show results
-                document.getElementById('survey').classList.add('hidden');
-                document.getElementById('results').classList.remove('hidden');
-                
-                const resultsList = document.getElementById('resultsList');
-                resultsList.innerHTML = '';
-                
-                questions.forEach((question, index) => {
-                    const resultItem = document.createElement('div');
-                    resultItem.className = 'result-item';
-                    resultItem.innerHTML = \`
-                        <div class="result-question">\${question.question}</div>
-                        <div class="result-answer">\${question.options[answers[index]]}</div>
-                    \`;
-                    resultsList.appendChild(resultItem);
-                });
-
-                // Add saved confirmation
-                const savedNote = document.createElement('p');
-                savedNote.style.color = '#28a745';
-                savedNote.style.fontSize = '14px';
-                savedNote.style.marginTop = '10px';
-                savedNote.textContent = '✓ Responses saved successfully!';
-                resultsList.appendChild(savedNote);
-
-            } catch (error) {
-                alert('Error saving survey: ' + error.message);
-                submitBtn.textContent = 'Submit';
-                submitBtn.disabled = false;
-            }
+        function submitSurvey() {
+            document.getElementById('survey').classList.add('hidden');
+            document.getElementById('results').classList.remove('hidden');
+            
+            const resultsList = document.getElementById('resultsList');
+            resultsList.innerHTML = '';
+            
+            questions.forEach((question, index) => {
+                const resultItem = document.createElement('div');
+                resultItem.className = 'result-item';
+                resultItem.innerHTML = `
+                    <div class="result-question">${question.question}</div>
+                    <div class="result-answer">${question.options[answers[index]]}</div>
+                `;
+                resultsList.appendChild(resultItem);
+            });
         }
 
         function restartSurvey() {
@@ -371,51 +316,4 @@ const html = `<!DOCTYPE html>
         renderQuestion();
     </script>
 </body>
-</html>`;
-
-export default {
-  async fetch(request, env, ctx) {
-    const url = new URL(request.url);
-
-    // Handle POST request to save survey results
-    if (request.method === 'POST' && url.pathname === '/api/submit') {
-      try {
-        const data = await request.json();
-        
-        // Store each response in D1
-        const stmt = env.DB.prepare(
-          'INSERT INTO survey_responses (device_id, question_id, question_text, answer_index, answer_text) VALUES (?, ?, ?, ?, ?)'
-        );
-        
-        // Batch insert all responses
-        const batch = data.responses.map(response => 
-          stmt.bind(
-            data.deviceId,
-            response.questionId,
-            response.questionText,
-            response.answerIndex,
-            response.answerText
-          )
-        );
-        
-        await env.DB.batch(batch);
-        
-        return new Response(JSON.stringify({ success: true }), {
-          headers: { 'Content-Type': 'application/json' },
-        });
-      } catch (error) {
-        return new Response(JSON.stringify({ error: error.message }), {
-          status: 500,
-          headers: { 'Content-Type': 'application/json' },
-        });
-      }
-    }
-
-    // Serve HTML for GET requests
-    return new Response(html, {
-      headers: {
-        'content-type': 'text/html;charset=UTF-8',
-      },
-    });
-  },
-};
+</html>
